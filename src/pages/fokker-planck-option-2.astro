@@ -1,0 +1,64 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Option 2 · Fokker–Planck heatmap">
+<section class="preview">
+  <a class="back-link" href="/">← Current homepage (unchanged)</a>
+  <h2>Option 2 — the density through time</h2>
+  <p>Time runs from left to right; position runs vertically. Darker red means greater probability density. Scroll over the plot to inspect a time slice.</p>
+  <div class="heatmap" tabindex="0" role="group" aria-label="Interactive Fokker–Planck heatmap" aria-describedby="heatmap-help">
+    <svg viewBox="0 0 900 450" role="img" aria-labelledby="heat-title heat-desc">
+      <title id="heat-title">Ornstein–Uhlenbeck probability density through time</title>
+      <desc id="heat-desc">A narrow density initially near three broadens and moves toward zero. The right panel shows the density at the selected time, compared with the stationary Gaussian.</desc>
+      <defs><linearGradient id="legend"><stop stop-color="#fff"/><stop offset="100%" stop-color="#9C000C"/></linearGradient></defs>
+      <text x="55" y="24" class="heading">DENSITY EVOLUTION</text>
+      <text x="685" y="24" class="heading">SELECTED DENSITY</text>
+      <image id="density-image" x="55" y="45" width="560" height="320" preserveAspectRatio="none" />
+      {[-4,-2,0,2,4].map(v=><g><line x1="55" x2="615" y1={205-v*32} y2={205-v*32} stroke="#ddd" stroke-opacity=".45"/><text x="26" y={209-v*32}>{v}</text></g>)}
+      {[1,2,3,4,5,6].map(t=><text x={55+(t-.1)/5.9*560-3} y="388">{t}</text>)}
+      <text x="49" y="388">0.1</text><text x="320" y="414">time</text>
+      <line id="time-cursor" x1="102" x2="102" y1="45" y2="365" stroke="#111" stroke-width="1.5" />
+      <line x1="685" x2="685" y1="45" y2="365" stroke="#ddd" />
+      <path id="slice-fill" fill="#9C000C" fill-opacity=".12" />
+      <path id="slice" fill="none" stroke="#9C000C" stroke-width="2" />
+      <path id="stationary" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="4 4" />
+      <text x="685" y="388">density →</text>
+      <rect x="55" y="425" width="95" height="7" fill="url(#legend)"/><text x="159" y="433">0 → 1 probability density</text>
+    </svg>
+  </div>
+  <div class="time-control"><label for="heat-time">Time <output id="heat-value">t = 0.6</output></label><input id="heat-time" type="range" min="0.1" max="6" step="0.01" value="0.6" /></div>
+  <p id="heatmap-help" class="caption">Red: exact evolving density · dashed black: stationary N(0, 1).<br />Scroll or drag the time slider. Keyboard: arrow keys when the plot is focused.</p>
+  <details><summary>The mathematics</summary><p>For dX = −X dt + √2 dW with X(0) = 3, the Fokker–Planck equation is ∂p/∂t = ∂(xp)/∂x + ∂²p/∂x². Its solution at t &gt; 0 is Gaussian with mean 3e⁻ᵗ and variance 1 − e⁻²ᵗ.</p><p>The heatmap uses this exact density, with one fixed linear color scale throughout. It begins at t = 0.1 because the initial distribution at t = 0 is a point mass. This is a deterministic density evolution, not another random sample path.</p></details>
+  <a class="text-link" href="/fokker-planck-option-1">Compare option 1 ↗</a>
+</section>
+</Layout>
+<style>
+.preview{max-width:900px;margin:0 auto 40px}h2{font-size:28px;margin:28px 0 14px}p{font-size:12px;color:#666;line-height:1.8;max-width:740px;margin-bottom:28px}.heatmap{margin:36px 0 24px}.heatmap:focus-visible{outline:1px solid #9C000C;outline-offset:10px}svg{display:block;width:100%;height:auto}svg text{font:11px 'Courier New',monospace;fill:#666}.heading{letter-spacing:1px}.time-control{max-width:300px;margin:24px auto}.time-control label{display:flex;justify-content:space-between;font-size:12px}input{accent-color:#9C000C}.caption{text-align:center;margin:24px auto 32px}details{font-size:12px;line-height:1.8;margin-bottom:20px}summary{cursor:pointer}details p{margin:16px 0}
+</style>
+<script>
+ const slider=document.querySelector<HTMLInputElement>('#heat-time')!;
+ const plot=document.querySelector<HTMLElement>('.heatmap')!;
+ const density=(x:number,t:number)=>{const variance=1-Math.exp(-2*t),mean=3*Math.exp(-t);return Math.exp(-((x-mean)**2)/(2*variance))/Math.sqrt(2*Math.PI*variance);};
+ // Rasterize the exact density once. The color scale is fixed, not normalized by column.
+ const canvas=document.createElement('canvas');canvas.width=560;canvas.height=320;
+ const ctx=canvas.getContext('2d')!, pixels=ctx.createImageData(560,320);
+ for(let row=0;row<320;row++)for(let col=0;col<560;col++){
+   const x=5-(row+.5)/32,t=.1+(col+.5)/560*5.9,p=density(x,t),i=(row*560+col)*4;
+   pixels.data[i]=255+(156-255)*p;pixels.data[i+1]=255*(1-p);pixels.data[i+2]=255+(12-255)*p;pixels.data[i+3]=255;
+ }
+ ctx.putImageData(pixels,0,0);document.querySelector('#density-image')!.setAttribute('href',canvas.toDataURL());
+ let time=.6;
+ function draw(){
+   const cursor=55+(time-.1)/5.9*560;
+   document.querySelector('#time-cursor')!.setAttribute('x1',String(cursor));document.querySelector('#time-cursor')!.setAttribute('x2',String(cursor));
+   const path=Array.from({length:401},(_,i)=>{const x=-5+i*.025;return `${i?'L':'M'}${685+180*density(x,time)},${205-x*32}`;}).join(' ');
+   document.querySelector('#slice')!.setAttribute('d',path);document.querySelector('#slice-fill')!.setAttribute('d',path+' L685,45 L685,365 Z');
+   document.querySelector('#stationary')!.setAttribute('d',Array.from({length:401},(_,i)=>{const x=-5+i*.025;return `${i?'L':'M'}${685+180*Math.exp(-x*x/2)/Math.sqrt(2*Math.PI)},${205-x*32}`;}).join(' '));
+   slider.value=String(time);document.querySelector<HTMLOutputElement>('#heat-value')!.value=`t = ${time.toFixed(2)}`;
+ }
+ function setTime(t:number){time=Math.max(.1,Math.min(6,t));draw();}
+ slider.addEventListener('input',()=>setTime(Number(slider.value)));
+ plot.addEventListener('wheel',e=>{if(e.ctrlKey||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;e.preventDefault();setTime(time+e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?400:1)*.003);},{passive:false});
+ plot.addEventListener('keydown',e=>{const increments:Record<string,number>={ArrowDown:.1,ArrowRight:.1,ArrowUp:-.1,ArrowLeft:-.1};if(e.key in increments){e.preventDefault();setTime(time+increments[e.key]);}else if(e.key==='Home'||e.key==='End'){e.preventDefault();setTime(e.key==='Home'?.1:6);}});
+ draw();
+</script>

@@ -1,0 +1,17 @@
+---
+import Layout from '../layouts/Layout.astro';
+import FokkerPlanckOverlay from '../components/FokkerPlanckOverlay.astro';
+---
+<Layout title="Option 1 · Fokker–Planck density">
+  <section class="option-preview">
+    <a class="back-link" href="/">← Current homepage (unchanged)</a>
+    <h2>Option 1 — density overlay</h2>
+    <p>Scroll over the plot to move through time. The solid black curve is the exact Fokker–Planck density; the dashed curve is equilibrium.</p>
+    <FokkerPlanckOverlay />
+  </section>
+</Layout>
+<style>
+.option-preview {max-width:800px;margin:0 auto 40px;}
+h2 {font-size:28px;margin:26px 0 12px;}
+p {font-size:12px;line-height:1.8;color:#666;max-width:690px;margin:0 0 32px;}
+</style>

@@ -1,0 +1,126 @@
+<figure class="distribution ou-figure paired" tabindex="0" aria-label="Synchronized paths and probability density" aria-describedby="pair-help">
+  <div class="panels">
+    <div><h3>Individual realizations</h3><p class="panel-subtitle">Stochastic differential equation</p>
+      <svg viewBox="0 0 470 420" role="img" aria-label="Twenty-four Ornstein–Uhlenbeck paths">
+        <defs><clipPath id="paths-clip"><rect x="42" y="45" width="390" height="320" /></clipPath></defs>
+        {[-4,-2,0,2,4].map(v=><g><line x1="42" x2="432" y1={205-v*32} y2={205-v*32} stroke="#eee"/><text x="14" y={209-v*32}>{v}</text></g>)}
+        <g id="ou-paths" clip-path="url(#paths-clip)"></g>
+        <line x1="42" x2="432" y1="365" y2="365" stroke="#bbb"/>
+        <text x="42" y="388">0</text><text id="ou-end-time" x="410" y="388">0.80</text>
+        <text x="220" y="412">time</text><text x="42" y="27">X(t)</text>
+      </svg>
+    </div>
+    <div><h3>The probability law</h3><p class="panel-subtitle">Fokker–Planck equation</p>
+      <svg viewBox="0 0 470 420" role="img" aria-label="Exact evolving Gaussian density, earlier densities in gray, and dashed stationary Gaussian">
+        <defs><clipPath id="density-clip"><rect x="42" y="45" width="390" height="320"/></clipPath></defs>
+        {[0,.25,.5,.75,1].map(p=><g><line x1="42" x2="432" y1={365-p*290} y2={365-p*290} stroke="#eee"/><text x="2" y={369-p*290}>{p}</text></g>)}
+        <g clip-path="url(#density-clip)"><g id="density-history"></g><path id="ou-stationary" fill="none" stroke="#222" stroke-dasharray="5 5" stroke-width="1.4"/><path id="ou-density" fill="none" stroke="#9C000C" stroke-width="2.5"/></g>
+        {[-4,-2,0,2,4].map(x=><text x={38+(x+5)*39} y="388">{x}</text>)}
+        <text x="205" y="412">position x</text><text x="42" y="27">p<tspan baseline-shift="sub" font-size="8">t</tspan>(x<tspan baseline-shift="sub" font-size="8">t</tspan>)</text>
+      </svg>
+    </div>
+  </div>
+  <div class="legend"><span><i class="current"></i>Current density</span><span><i class="past"></i>Earlier densities</span><span><i class="equilibrium"></i>Equilibrium</span></div>
+  <div class="ou-controls"><button id="ou-resample" type="button">New paths ↻</button></div>
+  <figcaption id="pair-help">Ornstein–Uhlenbeck process in <span aria-label="the real numbers">ℝ</span><br />dX = −X dt + √2 dW · <span id="initial-value">X(0) = 3</span> · exact density N(x₀e⁻ᵗ, 1 − e⁻²ᵗ)</figcaption>
+</figure>
+<style>
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:40px}.panels>div{min-width:0}h3{font:24px Georgia,serif;margin:0 0 8px}.panel-subtitle{font-size:11px;color:#777;margin:0 0 18px}.legend{display:flex;justify-content:center;flex-wrap:wrap;gap:20px;font-size:10px;color:#666;margin:22px 0 0}.legend span{display:flex;align-items:center;gap:7px}.legend i{width:22px;border-top:2px solid}.current{color:#9C000C}.past{color:#c7c7c7}.legend .equilibrium{color:#222;border-top-style:dashed}#shared-time{font-size:12px;color:#555}.paired{margin:40px 0 0}.paired .ou-controls{padding-top:24px}@media(max-width:700px){.panels{grid-template-columns:1fr;gap:40px}}
+</style>
+<script>
+  const figure = document.querySelector<HTMLElement>('.ou-figure')!;
+  let time = .8;
+  let initialValue = 3;
+  const palette = ['#3A0000', '#5E0409', '#7F0001', '#9C0304'];
+  const ns = 'http://www.w3.org/2000/svg';
+  const count = 24, steps = 600, dt = .01;
+  const decay = Math.exp(-dt), noise = Math.sqrt(1-Math.exp(-2*dt));
+  let paths: Float64Array[] = [];
+  function normal() {
+    return Math.sqrt(-2*Math.log(1-Math.random())) * Math.cos(2*Math.PI*Math.random());
+  }
+  function simulate() {
+    paths = Array.from({length: count}, () => {
+      const path = new Float64Array(steps+1); path[0] = initialValue;
+      for(let j=1; j<=steps; j++) path[j] = decay*path[j-1] + noise*normal();
+      return path;
+    });
+  }
+  function element(tag: string, attrs: Record<string,string>) {
+    const node = document.createElementNS(ns, tag);
+    for(const [key,value] of Object.entries(attrs)) node.setAttribute(key,value);
+    return node;
+  }
+  const y = (value: number) => 205-value*32;
+  function draw() {
+    const end = Math.round(time/dt);
+    const actualTime = end * dt;
+    const group = document.querySelector('#ou-paths')!;
+    group.replaceChildren();
+    for(let i=0;i<24;i++) {
+      const d = Array.from({length:end+1},(_,j) => `${j?'L':'M'}${42+j/end*390},${y(paths[i][j])}`).join(' ');
+      group.append(element('path',{d,fill:'none',class:'ou-path',style:`--path-color: ${palette[i % palette.length]}`,'stroke-width':'1'}));
+    }
+    function densityPath(t: number) {
+      const variance = 1 - Math.exp(-2*t), mean = initialValue*Math.exp(-t);
+      return Array.from({length:401},(_,i)=>{
+        const x = -5+i*.025;
+        const p = Math.exp(-((x-mean)**2)/(2*variance))/Math.sqrt(2*Math.PI*variance);
+        return `${i?'L':'M'}${42+(x+5)*39},${365-p*290}`;
+      }).join(' ');
+    }
+    const history = document.querySelector('#density-history')!;
+    history.replaceChildren();
+    // Fixed earlier times keep the history meaningful and stable when rewinding.
+    [.1,.25,.5,1,2,3,4,5].filter(t=>t<actualTime-.04).forEach(t=>{
+      history.append(element('path',{d:densityPath(t),fill:'none',stroke:'#c7c7c7','stroke-width':'1.2'}));
+    });
+    document.querySelector('#ou-density')!.setAttribute('d',densityPath(actualTime));
+    document.querySelector('#ou-stationary')!.setAttribute('d',Array.from({length:401},(_,i)=>{
+      const x=-5+i*.025;
+      return `${i?'L':'M'}${42+(x+5)*39},${365-290*Math.exp(-x*x/2)/Math.sqrt(2*Math.PI)}`;
+    }).join(' '));
+    document.querySelector('#ou-end-time')!.textContent = actualTime.toFixed(2);
+    document.querySelector('#initial-value')!.textContent = `X(0) = ${initialValue.toFixed(1)}`;
+  }
+  let pending = false;
+  function setTime(next: number) {
+    time = Math.max(.1, Math.min(6, next));
+    if (!pending) {
+      pending = true;
+      requestAnimationFrame(() => { pending = false; draw(); });
+    }
+  }
+  figure.addEventListener('wheel', (event) => {
+    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1);
+    setTime(time + pixels * .003);
+  }, { passive: false });
+  figure.addEventListener('keydown', (event) => {
+    if (event.target !== figure) return;
+    const changes: Record<string, number> = { ArrowDown: .1, ArrowRight: .1, ArrowUp: -.1, ArrowLeft: -.1 };
+    if (event.key in changes) { event.preventDefault(); setTime(time + changes[event.key]); }
+    else if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); setTime(event.key === 'Home' ? .1 : 6); }
+  });
+  let touchY: number | null = null;
+  const plot = figure;
+  plot.addEventListener('touchstart', (event) => { touchY = event.touches.length === 1 ? event.touches[0].clientY : null; }, { passive: true });
+  plot.addEventListener('touchmove', (event) => {
+    if (touchY === null || event.touches.length !== 1) return;
+    event.preventDefault();
+    const nextY = event.touches[0].clientY;
+    setTime(time + (touchY - nextY) * .015);
+    touchY = nextY;
+  }, { passive: false });
+  plot.addEventListener('touchend', () => { touchY = null; });
+  document.querySelector('#ou-resample')!.addEventListener('click',() => {
+    // A separated starting point makes each new initial condition visibly different.
+    let next = initialValue;
+    while (Math.abs(next-initialValue) < .7) next = Math.round((Math.random()*7-3.5)*10)/10;
+    initialValue = next;
+    time = .1;
+    simulate(); draw();
+  });
+  simulate(); draw();
+</script>

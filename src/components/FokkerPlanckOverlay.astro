@@ -1,0 +1,121 @@
+<!-- Exact discrete-time samples of dX = -X dt + sqrt(2) dW, starting at X = 3. -->
+<figure class="distribution ou-figure" tabindex="0" aria-label="Interactive time horizon" aria-describedby="plot-description">
+  <svg id="ou-plot" viewBox="0 0 820 420" role="img" aria-labelledby="plot-title plot-description">
+    <title id="plot-title">Ornstein–Uhlenbeck trajectories and their endpoint distribution</title>
+    <desc id="plot-description">Paths start at three and revert toward zero. The histogram on the right shows all 1,200 endpoints; the solid black curve is the exact time-dependent density, and the dashed curve is the stationary standard Gaussian. Scroll over the plot or use the arrow keys to change the time horizon.</desc>
+    <defs><clipPath id="paths-clip"><rect x="42" y="45" width="504" height="320" /></clipPath><clipPath id="density-clip"><rect x="580" y="45" width="210" height="320" /></clipPath></defs>
+    <text x="42" y="22" class="plot-heading">TRAJECTORIES</text>
+    <text x="580" y="22" class="plot-heading">ENDPOINTS</text>
+    {[-4,-2,0,2,4].map(value => <g>
+      <line x1="42" x2="790" y1={205-value*32} y2={205-value*32} stroke="#ededed" />
+      <text x="20" y={209-value*32}>{value}</text>
+    </g>)}
+    <g id="ou-paths" clip-path="url(#paths-clip)"></g>
+    <line x1="42" x2="546" y1="365" y2="365" stroke="#bbb" />
+    <text x="42" y="387">0</text><text id="ou-end-time" x="535" y="387">3.0</text>
+    <text x="269" y="408">time</text>
+    <g id="ou-histogram" opacity="0.96" clip-path="url(#density-clip)"></g>
+    <path id="ou-density" fill="none" stroke="#000" stroke-width="2.4" clip-path="url(#density-clip)" />
+    <path id="ou-stationary" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="4 4" clip-path="url(#density-clip)" />
+    <text x="580" y="387">density →</text>
+  </svg>
+  <div class="ou-controls">
+    <button id="ou-resample" type="button">New paths ↻</button>
+  </div>
+  <figcaption>
+    dX = −X dt + √2 dW · X(0) = 3<br />
+    Solid black: exact density at time t · dashed: stationary N(0, 1)<br />
+    Red histogram: 1,200 simulated endpoints
+  </figcaption>
+</figure>
+<script>
+  const figure = document.querySelector<HTMLElement>('.ou-figure')!;
+  let time = .5;
+  const palette = ['#3A0000', '#5E0409', '#7F0001', '#9C0304'];
+  const ns = 'http://www.w3.org/2000/svg';
+  const count = 1200, steps = 600, dt = .01;
+  const decay = Math.exp(-dt), noise = Math.sqrt(1-Math.exp(-2*dt));
+  let paths: Float64Array[] = [];
+  function normal() {
+    return Math.sqrt(-2*Math.log(1-Math.random())) * Math.cos(2*Math.PI*Math.random());
+  }
+  function simulate() {
+    paths = Array.from({length: count}, () => {
+      const path = new Float64Array(steps+1); path[0] = 3;
+      for(let j=1; j<=steps; j++) path[j] = decay*path[j-1] + noise*normal();
+      return path;
+    });
+  }
+  function element(tag: string, attrs: Record<string,string>) {
+    const node = document.createElementNS(ns, tag);
+    for(const [key,value] of Object.entries(attrs)) node.setAttribute(key,value);
+    return node;
+  }
+  const y = (value: number) => 205-value*32;
+  function draw() {
+    const end = Math.round(time/dt);
+    const actualTime = end * dt;
+    const group = document.querySelector('#ou-paths')!;
+    group.replaceChildren();
+    for(let i=0;i<24;i++) {
+      const d = Array.from({length:end+1},(_,j) => `${j?'L':'M'}${42+j/end*504},${y(paths[i][j])}`).join(' ');
+      group.append(element('path',{d,fill:'none',class:'ou-path',style:`--path-color: ${palette[i % palette.length]}`,'stroke-width':'1'}));
+    }
+    const bins = new Array(40).fill(0), width=.25;
+    for(const path of paths) {
+      const bin = Math.floor((path[end]+5)/width);
+      if(bin>=0 && bin<bins.length) bins[bin]++;
+    }
+    const histogram = document.querySelector('#ou-histogram')!;
+    histogram.replaceChildren();
+    bins.forEach((n,i) => histogram.append(element('rect', {
+      x:'580', y:String(y(-5+(i+1)*width)), width:String(n/count/width*180), height:'7.5', fill:'#9C0304'
+    })));
+    // Exact Fokker–Planck solution for a point mass initially at x = 3.
+    const mean = 3 * Math.exp(-actualTime);
+    const variance = 1 - Math.exp(-2 * actualTime);
+    document.querySelector('#ou-density')!.setAttribute('d', Array.from({length:401}, (_,i) => {
+      const value = -5 + i * .025;
+      const density = Math.exp(-((value-mean)**2)/(2*variance)) / Math.sqrt(2*Math.PI*variance);
+      return `${i?'L':'M'}${580+180*density},${y(value)}`;
+    }).join(' '));
+    document.querySelector('#ou-stationary')!.setAttribute('d',Array.from({length:201},(_,i) => {
+      const value = -5+i*.05;
+      return `${i?'L':'M'}${580+180*Math.exp(-value*value/2)/Math.sqrt(2*Math.PI)},${y(value)}`;
+    }).join(' '));
+    document.querySelector('#ou-end-time')!.textContent = time.toFixed(1);
+  }
+  let pending = false;
+  function setTime(next: number) {
+    time = Math.max(.1, Math.min(6, next));
+    if (!pending) {
+      pending = true;
+      requestAnimationFrame(() => { pending = false; draw(); });
+    }
+  }
+  figure.addEventListener('wheel', (event) => {
+    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1);
+    setTime(time + pixels * .003);
+  }, { passive: false });
+  figure.addEventListener('keydown', (event) => {
+    if (event.target !== figure) return;
+    const changes: Record<string, number> = { ArrowDown: .1, ArrowRight: .1, ArrowUp: -.1, ArrowLeft: -.1 };
+    if (event.key in changes) { event.preventDefault(); setTime(time + changes[event.key]); }
+    else if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); setTime(event.key === 'Home' ? .1 : 6); }
+  });
+  let touchY: number | null = null;
+  const plot = document.querySelector<SVGElement>('#ou-plot')!;
+  plot.addEventListener('touchstart', (event) => { touchY = event.touches.length === 1 ? event.touches[0].clientY : null; }, { passive: true });
+  plot.addEventListener('touchmove', (event) => {
+    if (touchY === null || event.touches.length !== 1) return;
+    event.preventDefault();
+    const nextY = event.touches[0].clientY;
+    setTime(time + (touchY - nextY) * .015);
+    touchY = nextY;
+  }, { passive: false });
+  plot.addEventListener('touchend', () => { touchY = null; });
+  document.querySelector('#ou-resample')!.addEventListener('click',() => {simulate();draw();});
+  simulate(); draw();
+</script>

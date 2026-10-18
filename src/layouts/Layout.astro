@@ -1,0 +1,61 @@
+---
+import '../styles/global.css';
+import ContactLinks from '../components/ContactLinks.astro';
+import 'katex/dist/katex.min.css';
+const { title = 'Leonardo Scaramelli', description = 'Applied probability, Bayesian statistics, and the mathematics of sampling.', homepage = false } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} /><title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script is:inline>
+      try { document.documentElement.dataset.theme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'; } catch {}
+    </script>
+  </head>
+  <body class:list={{ 'homepage': homepage }}>
+    <a class="skip" href="#main">Skip to content</a>
+    <div class="site-shell">
+      <header class="masthead">
+        <h1 class="name"><a href="/">Leonardo Scaramelli</a></h1>
+        <div class="header-actions">
+          <ContactLinks />
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffffff" /><path d="M12 3a9 9 0 0 1 0 18Z" fill="#151515" stroke="none" /><circle cx="12" cy="12" r="9" /></svg>
+          </button>
+        </div>
+      </header>
+      <div class="header-details">
+        <p class="header-subtitle">Applied probability, Bayesian statistics, and diffusion models.</p>
+        <nav class="header-navigation" aria-label="Main navigation">
+          <a href="/about">About</a>
+          <a href="/research">Research</a>
+          <a href="/explorations">Explorations</a>
+          <a href="/documents/LeonardoScaramelli_CV.pdf" target="_blank" rel="noopener noreferrer" title="Open CV PDF in a new tab">CV</a>
+        </nav>
+      </div>
+      <main id="main"><slot /></main>
+      <footer class="site-footer">
+        <small>© {new Date().getFullYear()} Leonardo Scaramelli</small>
+        <ContactLinks label="Footer contact links" />
+      </footer>
+    </div>
+    <script>
+      const toggle = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
+      function syncThemeButton() {
+        const dark = document.documentElement.dataset.theme === 'dark';
+        toggle.setAttribute('aria-pressed', String(dark));
+        toggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+        toggle.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+      }
+      syncThemeButton();
+      toggle.addEventListener('click', () => {
+        const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = theme;
+        try { localStorage.setItem('theme', theme); } catch {}
+        syncThemeButton();
+      });
+    </script>
+  </body>
+</html>
