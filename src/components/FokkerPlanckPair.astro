@@ -1,6 +1,6 @@
 <figure class="distribution ou-figure paired" tabindex="0" aria-label="Synchronized paths and probability density" aria-describedby="pair-help">
   <div class="panels">
-    <div><h3>Individual realizations</h3><p class="panel-subtitle">Stochastic differential equation</p>
+    <div id="paths-panel"><h3><span class="desktop-heading">Individual realizations</span><span class="mobile-heading">Paths</span></h3><p class="panel-subtitle">Stochastic differential equation</p>
       <svg viewBox="0 0 470 420" role="img" aria-label="Twenty-four Ornstein–Uhlenbeck paths">
         <defs><clipPath id="paths-clip"><rect x="42" y="45" width="390" height="320" /></clipPath></defs>
         {[-4,-2,0,2,4].map(v=><g><line x1="42" x2="432" y1={205-v*32} y2={205-v*32} stroke="#eee"/><text x="14" y={209-v*32}>{v}</text></g>)}
@@ -10,7 +10,7 @@
         <text x="220" y="412">time</text><text x="42" y="27">X(t)</text>
       </svg>
     </div>
-    <div><h3>The probability law</h3><p class="panel-subtitle">Fokker–Planck equation</p>
+    <div id="density-panel"><h3><span class="desktop-heading">The probability law</span><span class="mobile-heading">Density</span></h3><p class="panel-subtitle">Fokker–Planck equation</p>
       <svg viewBox="0 0 470 420" role="img" aria-label="Exact evolving Gaussian density, earlier densities in gray, and dashed stationary Gaussian">
         <defs><clipPath id="density-clip"><rect x="42" y="45" width="390" height="320"/></clipPath></defs>
         {[0,.25,.5,.75,1].map(p=><g><line x1="42" x2="432" y1={365-p*290} y2={365-p*290} stroke="#eee"/><text x="2" y={369-p*290}>{p}</text></g>)}
@@ -21,15 +21,42 @@
     </div>
   </div>
   <div class="legend"><span><i class="current"></i>Current density</span><span><i class="past"></i>Earlier densities</span><span><i class="equilibrium"></i>Equilibrium</span></div>
-  <div class="ou-controls"><button id="ou-resample" type="button">New paths ↻</button></div>
+  <div class="ou-controls">
+    <button id="ou-play" class="touch-play" type="button" aria-label="Play animation">Play</button>
+    <button id="ou-resample" type="button">New paths ↻</button>
+  </div>
   <figcaption id="pair-help">Ornstein–Uhlenbeck process in <span aria-label="the real numbers">ℝ</span><br />dX = −X dt + √2 dW · <span id="initial-value">X(0) = 3</span> · exact density N(x₀e⁻ᵗ, 1 − e⁻²ᵗ)</figcaption>
 </figure>
 <style>
 .panels{display:grid;grid-template-columns:1fr 1fr;gap:40px}.panels>div{min-width:0}h3{font:24px Georgia,serif;margin:0 0 8px}.panel-subtitle{font-size:11px;color:#777;margin:0 0 18px}.legend{display:flex;justify-content:center;flex-wrap:wrap;gap:20px;font-size:10px;color:#666;margin:22px 0 0}.legend span{display:flex;align-items:center;gap:7px}.legend i{width:22px;border-top:2px solid}.current{color:#9C000C}.past{color:#c7c7c7}.legend .equilibrium{color:#222;border-top-style:dashed}#shared-time{font-size:12px;color:#555}.paired{margin:40px 0 0}.paired .ou-controls{padding-top:24px}@media(max-width:700px){.panels{grid-template-columns:1fr;gap:40px}}
+/* Compact paired plots; touch gestures remain available for page scrolling. */
+.mobile-heading, .touch-play { display: none; }
+@media (max-width: 700px), (pointer: coarse) {
+  .touch-play { display: inline-block; min-width: 70px; min-height: 44px; }
+}
+@media (max-width: 700px) {
+  .panels { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+  .desktop-heading, .panel-subtitle { display: none; }
+  .mobile-heading { display: inline; }
+  h3 { font-size: 20px; margin-bottom: 14px; }
+  .paired svg text { font-size: 22px; }
+  .paired svg tspan { font-size: 16px; }
+  .legend { gap: 10px; font-size: 9px; margin-top: 18px; }
+  .legend i { width: 14px; }
+}
 </style>
 <script>
   const figure = document.querySelector<HTMLElement>('.ou-figure')!;
-  let time = .8;
+  const touchControls = window.matchMedia('(max-width: 700px), (pointer: coarse)');
+  const playButton = figure.querySelector<HTMLButtonElement>('#ou-play')!;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let playing = !reducedMotion.matches;
+  let visible = true;
+  let frame = 0;
+  let previous = 0;
+  let endPause = 0;
+
+  let time = touchControls.matches ? .1 : .8;
   let initialValue = 3;
   const palette = ['#3A0000', '#5E0409', '#7F0001', '#9C0304'];
   const ns = 'http://www.w3.org/2000/svg';
@@ -92,7 +119,7 @@
     }
   }
   figure.addEventListener('wheel', (event) => {
-    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    if (touchControls.matches || event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
     event.preventDefault();
     const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1);
     setTime(time + pixels * .003);
@@ -103,24 +130,50 @@
     if (event.key in changes) { event.preventDefault(); setTime(time + changes[event.key]); }
     else if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); setTime(event.key === 'Home' ? .1 : 6); }
   });
-  let touchY: number | null = null;
-  const plot = figure;
-  plot.addEventListener('touchstart', (event) => { touchY = event.touches.length === 1 ? event.touches[0].clientY : null; }, { passive: true });
-  plot.addEventListener('touchmove', (event) => {
-    if (touchY === null || event.touches.length !== 1) return;
-    event.preventDefault();
-    const nextY = event.touches[0].clientY;
-    setTime(time + (touchY - nextY) * .015);
-    touchY = nextY;
-  }, { passive: false });
-  plot.addEventListener('touchend', () => { touchY = null; });
+  // One full evolution takes about twelve seconds, followed by a two-second hold.
+  function syncPlayback() {
+    cancelAnimationFrame(frame);
+    previous = 0;
+    playButton.textContent = playing ? 'Pause' : 'Play';
+    playButton.setAttribute('aria-label', playing ? 'Pause animation' : 'Play animation');
+    if (playing && touchControls.matches && visible && !document.hidden) {
+      frame = requestAnimationFrame(animate);
+    }
+  }
+  function animate(now: number) {
+    if (!playing || !touchControls.matches || !visible || document.hidden) return;
+    const elapsed = previous ? Math.min((now - previous) / 1000, .1) : 0;
+    previous = now;
+    if (time >= 6) {
+      endPause += elapsed;
+      if (endPause >= 2) { time = .1; endPause = 0; draw(); }
+    } else {
+      time = Math.min(6, time + elapsed * .5);
+      draw();
+    }
+    frame = requestAnimationFrame(animate);
+  }
+  playButton.addEventListener('click', () => { playing = !playing; syncPlayback(); });
+  touchControls.addEventListener('change', syncPlayback);
+  reducedMotion.addEventListener('change', () => {
+    if (reducedMotion.matches) playing = false;
+    syncPlayback();
+  });
+  document.addEventListener('visibilitychange', syncPlayback);
+  const observer = new IntersectionObserver(entries => {
+    visible = entries[0].isIntersecting;
+    syncPlayback();
+  });
+  observer.observe(figure);
   document.querySelector('#ou-resample')!.addEventListener('click',() => {
     // A separated starting point makes each new initial condition visibly different.
     let next = initialValue;
     while (Math.abs(next-initialValue) < .7) next = Math.round((Math.random()*7-3.5)*10)/10;
     initialValue = next;
     time = .1;
-    simulate(); draw();
+    endPause = 0;
+    playing = !reducedMotion.matches;
+    simulate(); draw(); syncPlayback();
   });
-  simulate(); draw();
+  simulate(); draw(); syncPlayback();
 </script>
